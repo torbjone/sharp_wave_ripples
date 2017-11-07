@@ -1,0 +1,19 @@
+
+1) If you want to use the Human Brain Project cell models downloaded
+from https://bbp.epfl.ch/nmc-portal/ you first need to open the folder
+"sharp_wave_ripples/sharp_wave_ripples/hbp_cell_models" in a terminal
+and write "python hbp_cells.py". This should compile the needed
+cellular mechanisms.
+
+2) To initialize a population, go to the folder
+"sharp_wave_ripples/sharp_wave_ripples", and write
+"python main.py". This should initialize the population and
+run a cell simulation. A Figure should be made in a folder corresponding
+to the cell model name
+
+3) The script assumed you have MPI installed.
+To run the population simulation: "mpirun -np 4 python mpi_run.py MPI"
+The results from every tenth cell plotted
+
+4) To plot population results write "python mpi_run.py"
+
