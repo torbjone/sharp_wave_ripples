@@ -13,11 +13,17 @@ from neuron import h
 
 
 root_folder = '..'
-layer_thickness = 100
+layer_thickness = 200
 random_seed = 123
 random_seed_shift = {
                      "hbp_L4_SS_cADpyr230_1": 5,
-                     'hbp_L5_TTPC2_cADpyr232_1': 6}
+                     'hbp_L5_TTPC2_cADpyr232_1': 6,
+                     "hbp_L4_SBC_bNAC219_1": 7,}
+
+cell_type_weight_scale = {"hbp_L4_SS_cADpyr230_1": 0.1,
+                          'hbp_L5_TTPC2_cADpyr232_1': 1.0,
+                          "hbp_L4_SBC_bNAC219_1": 0.0075,}
+
 
 def initialize_population(num_cells, celltype):
     print "Initializing cell positions and rotations ..."
@@ -202,9 +208,9 @@ def animate_vmem(cell, fig_name):
         plt.savefig(join(root_folder, "vmem_anim", 'anim_%s_%04d.png' % (fig_name, t_idx)))
 
 
-def make_input(cell, input_type):
+def make_input(cell, input_type, cell_type):
 
-    weight = 0.002
+    weight = 0.002 * cell_type_weight_scale[cell_type]
     if input_type == "bombardment":
         input_idxs = cell.get_rand_idx_area_norm(section='allsec', nidx=1000)
         for input_idx in input_idxs:
@@ -219,12 +225,12 @@ def make_input(cell, input_type):
         #     cell, synapse = make_synapse(cell, weight * np.random.normal(1., 0.2), input_idx, input_spike_train)
 
         # Waves arriving in the soma region
-        input_idxs = cell.get_rand_idx_area_norm(section='allsec', nidx=20)
+        input_idxs = cell.get_rand_idx_area_norm(section='allsec', nidx=100)
                                                  # z_min=cell.zmid[0]-100,
                                                  # z_max=cell.zmid[0]+100)
         # Input is centered around:
         input_center = 30
-        input_std = 3.
+        input_std = 0.25
         for input_idx in input_idxs:
             input_spike_train = np.random.normal(input_center, input_std,
                                                  size=1)
@@ -275,7 +281,7 @@ def single_cell_compare(cell_number=1, celltype="almog",
     cell = return_cell(celltype, conductance_type, cell_number)
 
     # apic_idx = cell.get_closest_idx(x=0., z=-300, y=0.)
-    cell, syn_input = make_input(cell, input_type)
+    cell, syn_input = make_input(cell, input_type, celltype)
 
     # print np.mean(cell.diam), np.median(cell.diam)
     cell.simulate(rec_imem=True, rec_vmem=True)
@@ -298,7 +304,7 @@ def single_cell_compare(cell_number=1, celltype="almog",
         os.mkdir(join(root_folder, celltype, "EAPs"))
 
     spike_time_idx = np.argmax(cell.somav)
-    tlim = [cell.tvec[spike_time_idx] - 10, cell.tvec[spike_time_idx] + 10]
+    tlim = [cell.tvec[spike_time_idx] - 15, cell.tvec[spike_time_idx] + 15]
     spike_window_idx = [np.argmin(np.abs(cell.tvec - lim)) for lim in tlim]
 
     np.save(join(root_folder, celltype, "EAPs", "EAP_%s.npy" % fig_name),
@@ -404,7 +410,7 @@ if __name__ == '__main__':
 
     conductance_type = "active"
     if len(sys.argv) == 1:
-        celltype = ['hbp_L5_TTPC2_cADpyr232_1', "hbp_L4_SS_cADpyr230_1"][-1]
+        celltype = ['hbp_L5_TTPC2_cADpyr232_1', "hbp_L4_SS_cADpyr230_1", "hbp_L4_SBC_bNAC219_1"][1]
         input_type = ["waves"][0]
         initialize_population(10000, celltype)
         single_cell_compare(celltype=celltype, input_type=input_type,

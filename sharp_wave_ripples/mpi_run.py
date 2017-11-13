@@ -30,7 +30,8 @@ def plot_num_cells_to_ax(num_cells, ax_m, ax_sp, ax_vsd,
     step = int(tot_num_cells / num_cells)
 
     for cell_number in range(tot_num_cells)[::step]:
-        plt.seed((random_seed + random_seed_shift[celltype]) * cell_number + 524)
+        # plt.seed((random_seed + random_seed_shift[celltype]) * cell_number + 524)
+        plt.seed((random_seed + random_seed_shift[celltype]) * cell_number)
 
         # print (random_seed + random_seed_shift[celltype]) * cell_number + 1
         c = cell_idx_colors(np.random.randint(0, tot_num_cells))
@@ -43,32 +44,30 @@ def plot_num_cells_to_ax(num_cells, ax_m, ax_sp, ax_vsd,
         [ax_m.plot([cell.xstart[idx], cell.xend[idx]], [cell.zstart[idx], cell.zend[idx]],
                    c=c, zorder=0, rasterized=True)
          for idx in xrange(cell.totnsegs)]
+        [ax_m.plot(cell.xmid[idx], cell.zmid[idx], 'o', c=c, zorder=0, rasterized=True, ms=12   ) for idx in cell.somaidx]
+
         # [plt.plot(cell.xmid[idx], cell.zmid[idx], 'o', c=cell_idx_colors[idx], ms=12) for idx in cell_plot_idxs]
         # [ax.plot(cell.xmid[idx], cell.zmid[idx], 'o', c='orange', ms=2) for idx in cell.synidx]
         if cell_number == 0:
-            cell, syn = make_input(cell, input_type)
+            cell, syn = make_input(cell, input_type, celltype)
             # print np.random.random()
             cell.simulate(rec_imem=True, rec_vmem=True)
 
-            dz = electrode.z[1] - electrode.z[0]
+            # dz = electrode.z[1] - electrode.z[0]
 
-            for syn_idx, syn in enumerate(cell.synapses):
-                if cmap is not plt.cm.viridis:
-                    color = cmap(0.5)
-                else:
-                    c = "r" if syn.kwargs["e"] > -60. else 'b'
-                sptimes = cell.sptimeslist[syn_idx]
-                ax_sp.plot(sptimes, np.ones(len(sptimes)) * cell.zmid[syn.idx], '.', color=c)
+            if not ax_sp is None:
 
-    [ax_m.plot(electrode.x[idx], electrode.z[idx], 'D',  c="gray", ms=8, clip_on=False)
-     for idx in xrange(len(electrode.x))]
+                for syn_idx, syn in enumerate(cell.synapses):
+                    if cmap is not plt.cm.viridis:
+                        color = cmap(0.5)
+                    else:
+                        c = "r" if syn.kwargs["e"] > -60. else 'b'
+                    sptimes = cell.sptimeslist[syn_idx]
+                    ax_sp.plot(sptimes, np.ones(len(sptimes)) * cell.zmid[syn.idx], '.', color=c)
 
-
-
-
-
-
-
+    if not electrode is None:
+        [ax_m.plot(electrode.x[idx], electrode.z[idx], 'D',  c="gray", ms=8, clip_on=False)
+         for idx in xrange(len(electrode.x))]
 
 
 def plot_simpler_LFP(conductance_type, cell_name, input_type, num_cells):
@@ -163,33 +162,39 @@ def sum_EAPs(conductance_type, celltype, input_type, num_cells):
 
 def prope_EAP_synchronizations(conductance_type, celltype, input_type, num_cells):
 
+
     electrode_parameters = return_electrode_parameters()
     electrode = LFPy.RecExtElectrode(**electrode_parameters)
-    dz = electrode.z[1] - electrode.z[0]
 
     cell = return_cell(celltype, conductance_type, 0)
     cell_name = 'swr_%s_%s_%s_%04d' % (input_type, celltype, conductance_type, 0)
     EAP = np.load(join(root_folder, celltype, "EAPs", "EAP_%s.npy" % cell_name))
 
-    composed_signal_length = 150
+    composed_signal_length = 300
     composed_tvec = np.arange(0, composed_signal_length / cell.dt + 1) * cell.dt
 
-    composed_center = 40
+    composed_center = 100
     composed_center_idx = np.argmin(np.abs(composed_tvec - composed_center))
 
-    jitter_STDs = np.array([0, 1, 2, 4, 8])
+    t = composed_tvec - composed_center
+
+    jitter_STDs = np.array([0, 0.5, 1, 2])
+
+    use_elec_idx = 9 # 7
+
+    np.random.seed(12345)
 
     summed_EAP_dict = {j: np.zeros((EAP.shape[0], len(composed_tvec)))
                        for j in jitter_STDs}
 
-
     for cell_idx in range(0, num_cells):
-        fig_name = 'swr_%s_%s_%s_%04d' % (input_type, celltype, conductance_type, cell_idx)
-        EAP = np.load(join(root_folder, celltype, "EAPs", "EAP_%s.npy" % fig_name))
+        cell_name = 'swr_%s_%s_%s_%04d' % (input_type, celltype, conductance_type, cell_idx)
+        # print cell_name
+        EAP = np.load(join(root_folder, celltype, "EAPs", "EAP_%s.npy" % cell_name))
 
         # tvec = np.arange(EAP.shape[1]) * cell.dt
-        # plt.plot(tvec, EAP[6,:])
-        # plt.savefig("testint.png")
+        # plt.plot(tvec, EAP[use_elec_idx,:])
+        # plt.savefig("testint_{}.png".format(cell_name))
         # plt.close("all")
 
         for jit_idx, jitter_STD in enumerate(jitter_STDs):
@@ -199,31 +204,113 @@ def prope_EAP_synchronizations(conductance_type, celltype, input_type, num_cells
             summed_EAP_dict[jitter_STD][:, t0:t1] += EAP[:, :]
 
     num_cols = len(jitter_STDs)
-    fig = plt.figure(figsize=[18, 8])
-    xlim = [25, 55]
+    fig = plt.figure(figsize=[18, 9])
+    fig.subplots_adjust(wspace=0.5, right=0.98, left=0.2)
+
+    ax_m = fig.add_axes([0, 0.05, 0.2, 0.9], aspect=1, xlabel='x [$\mu$m]', ylabel='y [$\mu$m]',
+                       title="Cell population (%d cells)\nand electrodes" % num_cells,
+                        ylim=[np.min(electrode.z), 100], xticks=[], frameon=False, rasterized=True)
+
+    num_cells_to_plot = np.min([5, num_cells])
+    plot_num_cells_to_ax(num_cells_to_plot, ax_m, None, None, celltype,
+                         None, input_type, num_cells)
+
+    ax_m.plot(electrode.x[use_elec_idx], electrode.z[use_elec_idx], 'D', c="gray", ms=8, clip_on=False)
+
+    xlim = [-5, 10]
+    ylim = [-0.8, 0.4]
 
     for jit_idx, jitter_STD in enumerate(jitter_STDs):
         sig = summed_EAP_dict[jitter_STD]
+        filtered_wband = tools.filter_data(cell.dt, sig, low_freq=20.0, high_freq=3000.)
+        filtered_spikes = tools.filter_data(cell.dt, sig, low_freq=600.0, high_freq=3000.)
+        filtered_lfp = tools.filter_data(cell.dt, sig, low_freq=20.0, high_freq=600.)
 
-        ax_lfp = plt.subplot(1, num_cols, jit_idx + 1,
+
+        ax_raw = plt.subplot(4, num_cols, 0 + jit_idx + 1,
                              title="Jitter STD: {} ms".format(jitter_STD),
-                             frameon=False, ylabel='y [$\mu$m]',
-                             xlabel='Time [ms]', xlim=xlim,
-                             ylim=[np.min(electrode.z), 100])#, sharex=ax_e2)
+                             ylabel='mV', ylim=ylim,
+                             # xlabel='Time [ms]',
+                             xlim=xlim)
+
+        ax_wband = plt.subplot(4, num_cols, 4 + jit_idx + 1,
+                             # title="Jitter STD: {} ms".format(jitter_STD),
+                             ylabel='mV', ylim=ylim,
+                             # xlabel='Time [ms]',
+                             xlim=xlim)
+
+        ax_spikes = plt.subplot(4, num_cols, 8 + jit_idx + 1,
+                             # title="Jitter STD: {} ms".format(jitter_STD),
+                             ylabel='mV', ylim=ylim,
+                             # xlabel='Time [ms]',
+                             xlim=xlim)
+
+        ax_lfp = plt.subplot(4, num_cols, 12 + jit_idx + 1,
+                             # title="Jitter STD: {} ms".format(jitter_STD),
+                             ylabel='mV', ylim=ylim,
+                             xlabel='Time [ms]', xlim=xlim)
+#                             ylim=[np.min(electrode.z), 100])#, sharex=ax_e2)
 
         # img = ax_lfp.imshow(LFP, vmin=vmin, vmax=vmax, **img_dict)#, aspect=0.05)
-        normalize = np.max(np.abs((sig[:, :] - sig[:, 0, None])))
-        for idx in range(len(electrode.z)):
-            y = electrode.z[idx] + (sig[idx] - sig[idx, 0]) / normalize * dz
+        # normalize = np.max(np.abs((sig[:, :] - sig[:, 0, None])))
+        # for idx in range(len(electrode.z)):
+        #     if idx != 7:
+        #         continue
+        # y = electrode.z[idx] + (sig[idx] - sig[idx, 0]) / normalize * dz
+        y_raw = sig[use_elec_idx] - sig[use_elec_idx, 0]
+        y_wband = filtered_wband[use_elec_idx] - filtered_wband[use_elec_idx, 0]
+        y_spikes = filtered_spikes[use_elec_idx] - filtered_spikes[use_elec_idx, 0]
+        y_lfp = filtered_lfp[use_elec_idx] - filtered_lfp[use_elec_idx, 0]
 
-            ax_lfp.plot(composed_tvec, y, lw=1, c='k', clip_on=True)
+        threshold_lfp = np.max(np.abs(y_lfp)) / 3
+        threshold_raw = np.max(np.abs(y_raw)) / 3
+        threshold_wband = np.max(np.abs(y_wband)) / 3
+        threshold_spikes = np.max(np.abs(y_spikes)) / 3
 
-        ax_lfp.plot([xlim[1], xlim[1]], [-dz, 0], 'k', lw=4, clip_on=False)
-        ax_lfp.text(xlim[1] + 2, -dz/2, "%1.2f mV" % (normalize / 1000.))
-        ax_lfp.axvline(composed_center, ls="--", color="gray")
+        minima_idx_raw = (np.diff(np.sign(np.diff(y_raw))) > 0).nonzero()[0] + 1
+        minima_idx_raw = minima_idx_raw[np.where(y_raw[minima_idx_raw] < -threshold_raw)]
 
+        minima_idx_wband = (np.diff(np.sign(np.diff(y_wband))) > 0).nonzero()[0] + 1
+        minima_idx_wband = minima_idx_wband[np.where(y_wband[minima_idx_wband] < -threshold_wband)]
+
+        minima_idx_spikes = (np.diff(np.sign(np.diff(y_spikes))) > 0).nonzero()[0] + 1
+        minima_idx_spikes = minima_idx_spikes[np.where(y_spikes[minima_idx_spikes] < -threshold_spikes)]
+
+        minima_idx_lfp = (np.diff(np.sign(np.diff(y_lfp))) > 0).nonzero()[0] + 1
+        minima_idx_lfp = minima_idx_lfp[np.where(y_lfp[minima_idx_lfp] < -threshold_lfp)]
+
+
+        ax_raw.axhline(-threshold_raw / 1000, ls="--", color="pink")
+        ax_wband.axhline(-threshold_wband / 1000, ls="--", color="pink")
+        ax_spikes.axhline(-threshold_spikes / 1000, ls="--", color="pink")
+        ax_lfp.axhline(-threshold_lfp / 1000, ls="--", color="pink")
+
+        l1, = ax_raw.plot(t, y_raw / 1000, lw=1, c='gray', clip_on=True)
+        l2, = ax_wband.plot(t, y_wband / 1000, lw=1, c='k', clip_on=True)
+        l3, = ax_spikes.plot(t, y_spikes / 1000, lw=1, c='g', clip_on=True)
+        l4, = ax_lfp.plot(t, y_lfp / 1000, lw=1, c='b', clip_on=True)
+
+        ax_raw.plot(t[minima_idx_raw], y_raw[minima_idx_raw] / 1000, 'o', ms=2, c='r', clip_on=True)
+        ax_wband.plot(t[minima_idx_wband], y_wband[minima_idx_wband] / 1000, 'o', ms=2, c='r', clip_on=True)
+        ax_spikes.plot(t[minima_idx_spikes], y_spikes[minima_idx_spikes] / 1000, 'o', ms=2, c='r', clip_on=True)
+        ax_lfp.plot(t[minima_idx_lfp], y_lfp[minima_idx_lfp] / 1000, 'o', ms=2, c='r', clip_on=True)
+
+
+        # ax_lfp.plot(composed_tvec - composed_center, y_filt, lw=1, c='r', clip_on=True)
+
+        # ax_lfp.plot([xlim[1], xlim[1]], [-normalize, 0], 'k', lw=4, clip_on=False)
+        # ax_lfp.text(xlim[1] + 2, -dz/2, "%1.2f mV" % (normalize / 1000.))
+        ax_raw.axvline(0, ls="--", color="gray")
+        ax_wband.axvline(0, ls="--", color="gray")
+        ax_spikes.axvline(0, ls="--", color="gray")
+        ax_lfp.axvline(0, ls="--", color="gray")
+
+    fig.legend([l1, l2, l3, l4], ["Raw", "Wideband (20-3000 Hz)",
+                                  "Spikes (600 - 3000 Hz)",
+                                  "LFP (20-600 Hz)"],
+               loc="lower center", frameon=False, ncol=4)
     fig_name = '%s_%s_%s' % (input_type, celltype, conductance_type)
-    plt.savefig(join(root_folder, "jitter_swr_%s_%d.png" % (fig_name, num_cells)))
+    plt.savefig(join(root_folder, "jitter_swr_%s_%d_peaks.png" % (fig_name, num_cells)))
 
 
 
@@ -335,9 +422,9 @@ def plot_all(input_types, celltypes, num_cells):
 
 
 if __name__ == '__main__':
-    num_cells = 5000
+    num_cells = 500
     input_types = ["waves"]#"changing_pathways"]#"tuft_pulse", "basal_pulse"][:]
-    celltypes = ["hbp_L23_PC_cADpyr229_1", "hbp_L4_SS_cADpyr230_1"][-1:]
+    celltypes = ["hbp_L23_PC_cADpyr229_1", "hbp_L4_SS_cADpyr230_1", "hbp_L4_SBC_bNAC219_1"][-1:]
 
     # if len(sys.argv) == 2 and sys.argv[1] == "MPI":
     #     print "Running population with %d cells" % num_cells

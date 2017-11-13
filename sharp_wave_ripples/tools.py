@@ -59,13 +59,15 @@ def return_freq_and_psd_welch(sig, welch_dict):
     return freqs, np.array(psd)
 
 
-def filter_data(dt, data):
+def filter_data(dt, data, low_freq=20.0, high_freq=3000.):
      data_filter = {
-            'filter_design' : ss.butter,
+            'filter_design' : ss.ellip,
             'filter_design_args' : {
                 'N' : 2,
-                'Wn' : np.array([20., 600.]) * dt / 1000.,
-                'btype' : 'pass',
+                'rp': 0.1,
+                'rs': 40,
+                'Wn' : np.array([low_freq, high_freq]) * dt / 1000. *2,
+                'btype' : 'bandpass',
             },
             'filter' : ss.filtfilt
      }
