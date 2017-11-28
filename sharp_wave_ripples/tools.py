@@ -75,6 +75,19 @@ def filter_data(dt, data, low_freq=20.0, high_freq=3000.):
      data_filtered = data_filter['filter'](b, a, data)
      return data_filtered
 
+def filter_data_butterworth(dt, data, low_freq=20.0, high_freq=3000.):
+     data_filter = {
+            'filter_design' : ss.butter,
+            'filter_design_args' : {
+                'N' : 2,
+                'Wn' : np.array([low_freq, high_freq]) * dt / 1000. *2,
+                'btype' : 'bandpass',
+            },
+            'filter' : ss.filtfilt
+     }
+     b, a = data_filter['filter_design'](**data_filter['filter_design_args'])
+     data_filtered = data_filter['filter'](b, a, data)
+     return data_filtered
 
 def test_filter():
 

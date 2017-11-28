@@ -13,7 +13,7 @@ from neuron import h
 
 
 root_folder = '..'
-layer_thickness = 200
+layer_thickness = 100
 random_seed = 123
 random_seed_shift = {
                      "hbp_L4_SS_cADpyr230_1": 5,
@@ -22,12 +22,12 @@ random_seed_shift = {
 
 cell_type_weight_scale = {"hbp_L4_SS_cADpyr230_1": 0.1,
                           'hbp_L5_TTPC2_cADpyr232_1': 1.0,
-                          "hbp_L4_SBC_bNAC219_1": 0.0075,}
+                          "hbp_L4_SBC_bNAC219_1": 0.007,}
 
 
 def initialize_population(num_cells, celltype):
     print "Initializing cell positions and rotations ..."
-    cell_density = 100000. * 1e-9 #  cells / um^3
+    cell_density = 200000. * 1e-9 #  cells / um^3
 
     pop_radius = np.sqrt(num_cells / (cell_density * np.pi * layer_thickness))
     print num_cells, pop_radius
@@ -45,6 +45,7 @@ def initialize_population(num_cells, celltype):
         x_y_z_rot[cell_number, :] = [x, y, z, rotation]
 
     r = np.array([np.sqrt(d[0]**2 + d[1]**2) for d in x_y_z_rot])
+
     argsort = np.argsort(r)
     x_y_z_rot = x_y_z_rot[argsort]
 
@@ -118,6 +119,11 @@ def return_cell(celltype, conductance_type="passive", cell_number=None):
     if cell_number is not None:
         cell_x_y_z_rotation = np.load(join(root_folder, 'x_y_z_rot_%d_%s.npy' % (10000, celltype)))
         cell.set_rotation(z=cell_x_y_z_rotation[cell_number][3])
+        # cell.set_rotation(x=2 * np.pi * np.random.random(),
+        #                   y=2 * np.pi * np.random.random(),
+        #                   z=2 * np.pi * np.random.random(),
+        #                   )
+
         z_shift = np.max(cell.zend) + layer_thickness / 2
         cell.set_pos(x=cell_x_y_z_rotation[cell_number][0],
                      y=cell_x_y_z_rotation[cell_number][1],
@@ -329,7 +335,6 @@ def single_cell_compare(cell_number=1, celltype="almog",
 def plot_single_cell_LFP(cell, electrode_parameters,
                          celltype, fig_name):
 
-
     ### MAKING THE ELECTRODE
     electrode = LFPy.RecExtElectrode(cell, **electrode_parameters)
     electrode.calc_lfp()
@@ -410,7 +415,7 @@ if __name__ == '__main__':
 
     conductance_type = "active"
     if len(sys.argv) == 1:
-        celltype = ['hbp_L5_TTPC2_cADpyr232_1', "hbp_L4_SS_cADpyr230_1", "hbp_L4_SBC_bNAC219_1"][1]
+        celltype = ['hbp_L5_TTPC2_cADpyr232_1', "hbp_L4_SS_cADpyr230_1", "hbp_L4_SBC_bNAC219_1"][-2]
         input_type = ["waves"][0]
         initialize_population(10000, celltype)
         single_cell_compare(celltype=celltype, input_type=input_type,
