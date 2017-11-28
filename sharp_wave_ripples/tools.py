@@ -2,7 +2,6 @@ import numpy as np
 import scipy.fftpack as ff
 import scipy.signal as ss
 import pylab as plt
-# NEURON is not OK with this package for some reason. Seems to be something about __future__ import related to strings
 from matplotlib import mlab as ml
 
 def return_freq_and_psd(tvec, sig):
