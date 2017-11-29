@@ -39,7 +39,28 @@ def get_templatename(f):
 
 
 def hbp_return_cell(cell_folder, end_T, dt, start_T, v_init=-65.):
+    """
+    Returns HBP cell model from HBP microcircuit:
+    https://bbp.epfl.ch/nmc-portal/welcome
+    Parameters
+    ----------
+    cell_folder : str
+        path to cell model
+    end_T : float
+        Simulation end time in ms.
+    dt : float
+        Simulation time resolution
+    start_T : float
+        Simulation start time in ms.
+    v_init : float
+        Initialization voltage
 
+    Returns
+    -------
+    cell : obj
+        LFPy Cell object
+
+    """
     hbp_models_folder = os.path.split(__file__)[0]
     neuron.h.load_file("stdrun.hoc")
     neuron.h.load_file("import3d.hoc")
@@ -103,7 +124,7 @@ def hbp_return_cell(cell_folder, end_T, dt, start_T, v_init=-65.):
     return cell
 
 
-def initialize_population(num_cells, celltype):
+def initialize_population(num_cells, cell_name):
     print "Initializing cell positions and rotations ..."
     cell_density = 200000. * 1e-9 #  cells / um^3
 
@@ -113,7 +134,7 @@ def initialize_population(num_cells, celltype):
     x_y_z_rot = np.zeros((num_cells, 4))
 
     for cell_number in range(num_cells):
-        plt.seed((random_seed + random_seed_shift[celltype]) * cell_number + 1)
+        plt.seed((random_seed + random_seed_shift[cell_name]) * cell_number + 1)
         rotation = 2*np.pi*np.random.random()
 
         z = layer_thickness * (np.random.random() - 0.5)
@@ -127,7 +148,7 @@ def initialize_population(num_cells, celltype):
     argsort = np.argsort(r)
     x_y_z_rot = x_y_z_rot[argsort]
 
-    np.save(join(root_folder, 'x_y_z_rot_%d_%s.npy' % (num_cells, celltype)), x_y_z_rot)
+    np.save(join(root_folder, 'x_y_z_rot_%d_%s.npy' % (num_cells, cell_name)), x_y_z_rot)
     plt.close("all")
     plt.subplot(121, xlabel='x', ylabel='y', aspect=1, frameon=False)
     plt.scatter(x_y_z_rot[:, 0], x_y_z_rot[:, 1], edgecolor='none', s=2)
@@ -135,7 +156,7 @@ def initialize_population(num_cells, celltype):
     plt.subplot(122, xlabel='x', ylabel='z', aspect=1, frameon=False)
     plt.scatter(x_y_z_rot[:, 0], x_y_z_rot[:, 2], edgecolor='none', s=2)
 
-    plt.savefig(join(root_folder, 'population_%d_%s.png' % (num_cells, celltype)))
+    plt.savefig(join(root_folder, 'population_%d_%s.png' % (num_cells, cell_name)))
 
 
 def make_synapse(cell, weight, input_idx, input_spike_train, e=0.):
@@ -182,7 +203,6 @@ def return_cell(cell_name, cell_number):
 def make_input(cell, cell_name):
 
     weight = 0.002 * cell_type_weight_scale[cell_name]
-
     input_idxs = cell.get_rand_idx_area_norm(section='allsec', nidx=100)
                                              # z_min=cell.zmid[0]-100,
                                              # z_max=cell.zmid[0]+100)
