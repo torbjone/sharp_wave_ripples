@@ -6,70 +6,75 @@ import matplotlib
 matplotlib.use("AGG")
 import pylab as plt
 import tools
-from plotting_convention import *
-from cell_simulation import return_cell, return_electrode_parameters, make_input, random_seed, random_seed_shift
+from plotting_convention import simplify_axes
+from cell_simulation import return_cell, return_electrode_parameters, random_seed, random_seed_shift
 import LFPy
-from matplotlib import ticker
 
 
 root_folder = ".."
 
 
-def prope_EAP_synchronizations(cell_name, input_type, num_cells):
+def prope_EAP_synchronizations(cell_name, num_cells):
 
-    fig_name = '%s_%s_%s' % (input_type, cell_name)
     num_trials = 100
+    plot_trials = True
+    jitter_STDs = np.array([0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2])
+
+    use_elec_idx = 10 if cell_name is "hbp_L4_SBC_bNAC219_1" else 7
+    print use_elec_idx
 
     cell = return_cell(cell_name, 0)
     dt = cell.dt
-    cell_name = 'swr_%s_%04d' % (cell_name, 0)
-    EAP = np.load(join(root_folder, cell_name, "EAPs", "EAP_%s.npy" % cell_name))
+    sim_name = 'swr_%s_%04d' % (cell_name, 0)
+    print cell_name
+    EAP = np.load(join(root_folder, cell_name, "EAPs", "EAP_%s.npy" % sim_name))
 
-    composed_signal_length = 300
+    composed_signal_length = 400
     composed_tvec = np.arange(0, composed_signal_length / dt + 1) * dt
 
-    composed_center = 100
+    composed_center = 200
     composed_center_idx = np.argmin(np.abs(composed_tvec - composed_center))
 
     mean_latency = 10
 
     t = composed_tvec - composed_center + mean_latency
 
-    jitter_STDs = np.array([0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2])
-    num_cols = len(jitter_STDs)
-    # use_elec_idx = 10 if celltype is "hbp_L4_SBC_bNAC219_1" else 6
-    use_elec_idx = 18 if cell_name is "hbp_L4_SBC_bNAC219_1" else 6
-    print use_elec_idx
+    signal_list = ["raw", "wband", "spikes", "lfp", "lfp_hf"]
+    signal_filter_params = {"raw": None,
+                            "wband": [20.0, 3000.],  # [low_freq, high_freq]
+                            "spikes": [600., 3000.],
+                            "lfp": [20., 600.],
+                            "lfp_hf": [200., 600.],
+                            }
+    title_dict = {"raw": "Raw data",
+                  "wband": "Wide band (20-3000 Hz)",
+                  "spikes": "Spike (600-3000 Hz)",
+                  "lfp": "LFP (20-600 Hz)",
+                  "lfp_hf": "hf_LFP (200-600 Hz)",
+                  }
 
-    latencies = {
-        "raw": np.zeros((len(jitter_STDs), num_trials)),
-        "wband": np.zeros((len(jitter_STDs), num_trials)),
-        "spikes": np.zeros((len(jitter_STDs), num_trials)),
-        "mua": np.zeros((len(jitter_STDs), num_trials)),
-        "lfp": np.zeros((len(jitter_STDs), num_trials)),
-    }
+    num_cols = len(jitter_STDs)
+    latencies = {key: np.zeros((len(jitter_STDs), num_trials)) for key in signal_list}
 
     clr_dict = {"raw": "gray",
                 "wband": "k",
                 "spikes": "g",
-                "mua": "c",
                 "lfp": "b",
+                "lfp_hf": "c",
                 }
-
-    plot_trials = False
 
     for trial_num in range(num_trials):
         print trial_num
 
-        np.random.seed(1234 + trial_num)
-
+        np.random.seed(num_cells + 1234 + trial_num)
         summed_EAP_dict = {j: np.zeros((EAP.shape[0], len(composed_tvec)))
                            for j in jitter_STDs}
 
         for cell_idx in range(0, num_cells):
-
-            cell_name = 'swr_%s_%04d' % (cell_name, cell_idx)
-            EAP = np.load(join(root_folder, cell_name, "EAPs", "EAP_%s.npy" % cell_name))
+            if cell_idx < 50:
+                continue
+            sim_name = 'swr_%s_%04d' % (cell_name, cell_idx)
+            EAP = np.load(join(root_folder, cell_name, "EAPs", "EAP_%s.npy" % sim_name))
 
             for jit_idx, jitter_STD in enumerate(jitter_STDs):
                 jitter_idx = int(round(np.random.normal(0, jitter_STD / cell.dt)))
@@ -77,163 +82,128 @@ def prope_EAP_synchronizations(cell_name, input_type, num_cells):
                 t1 = t0 + EAP.shape[1]
                 summed_EAP_dict[jitter_STD][:, t0:t1] += EAP[:, :]
 
-        for jit_idx, jitter_STD in enumerate(jitter_STDs):
-            sig = summed_EAP_dict[jitter_STD]
-            filtered_wband = tools.filter_data(cell.dt, sig, low_freq=20.0, high_freq=3000.)
-            filtered_spikes = tools.filter_data(cell.dt, sig, low_freq=600.0, high_freq=3000.)
-            # filtered_spikes = tools.filter_data_butterworth(cell.dt, sig, low_freq=600.0, high_freq=3000.)
-            # filtered_MUA = -np.abs(tools.filter_data_butterworth(cell.dt, sig, low_freq=600.0, high_freq=3000.))
-            # filtered_MUA = tools.filter_data(cell.dt, filtered_MUA, low_freq=20.0, high_freq=600.)
-            filtered_lfp = tools.filter_data(cell.dt, sig, low_freq=20.0, high_freq=600.)
-
-            y_raw = sig[use_elec_idx] - sig[use_elec_idx, 0]
-            y_wband = filtered_wband[use_elec_idx] - filtered_wband[use_elec_idx, 0]
-            y_spikes = filtered_spikes[use_elec_idx] - filtered_spikes[use_elec_idx, 0]
-            # y_MUA = filtered_MUA[use_elec_idx] - filtered_MUA[use_elec_idx, 0]
-            y_lfp = filtered_lfp[use_elec_idx] - filtered_lfp[use_elec_idx, 0]
-
-            threshold_raw = np.max(np.abs(y_raw)) / 3
-            threshold_wband = np.max(np.abs(y_wband)) / 3
-            threshold_spikes = np.max(np.abs(y_spikes)) / 3
-            # threshold_MUA = np.max(np.abs(y_MUA)) / 3
-            threshold_lfp = np.max(np.abs(y_lfp)) / 3
-
-            minima_idx_raw = (np.diff(np.sign(np.diff(y_raw))) > 0).nonzero()[0] + 1
-            minima_idx_raw = minima_idx_raw[np.where(y_raw[minima_idx_raw] < -threshold_raw)]
-
-            minima_idx_wband = (np.diff(np.sign(np.diff(y_wband))) > 0).nonzero()[0] + 1
-            minima_idx_wband = minima_idx_wband[np.where(y_wband[minima_idx_wband] < -threshold_wband)]
-
-            minima_idx_spikes = (np.diff(np.sign(np.diff(y_spikes))) > 0).nonzero()[0] + 1
-            minima_idx_spikes = minima_idx_spikes[np.where(y_spikes[minima_idx_spikes] < -threshold_spikes)]
-
-            # minima_idx_MUA = (np.diff(np.sign(np.diff(y_MUA))) > 0).nonzero()[0] + 1
-            # minima_idx_MUA = minima_idx_MUA[np.where(y_MUA[minima_idx_MUA] < -threshold_MUA)]
-            # minima_idx_MUA = np.array([np.argmax(np.abs(y_MUA))])
-
-            minima_idx_lfp = (np.diff(np.sign(np.diff(y_lfp))) > 0).nonzero()[0] + 1
-            minima_idx_lfp = minima_idx_lfp[np.where(y_lfp[minima_idx_lfp] < -threshold_lfp)]
-
-            # for min_list in [minima_idx_raw, minima_idx_wband,
-            #                  minima_idx_spikes, minima_idx_MUA, minima_idx_lfp]:
-
-            try:
-                latencies["raw"][jit_idx, trial_num] = t[minima_idx_raw[0]]
-                latencies["wband"][jit_idx, trial_num] = t[minima_idx_wband[0]]
-                latencies["spikes"][jit_idx, trial_num] = t[minima_idx_spikes[0]]
-                # latencies["mua"][jit_idx, trial_num] = t[minima_idx_MUA[0]]
-                latencies["lfp"][jit_idx, trial_num] = t[minima_idx_lfp[0]]
-            except:
-                latencies["raw"][jit_idx, trial_num] = 0.
-                latencies["wband"][jit_idx, trial_num] = 0.
-                latencies["spikes"][jit_idx, trial_num] = 0.
-                # latencies["mua"][jit_idx, trial_num] = 0.
-                latencies["lfp"][jit_idx, trial_num] = 0.
-
-            if plot_trials:
-                plt.close("all")
-                fig = plt.figure(figsize=[18, 9])
-                fig.subplots_adjust(wspace=0.5, right=0.98, left=0.1, hspace=0.5)
-                ax_raw = plt.subplot(4, num_cols, 0 + jit_idx + 1,
-                                     ylim=ylim,
-                                     xlim=xlim)
-                ax_wband = plt.subplot(4, num_cols, (num_cols) * 1 + jit_idx + 1,
-                                     ylim=ylim,
-                                     xlim=xlim)
-
-                ax_spikes = plt.subplot(4, num_cols, (num_cols ) * 2 + jit_idx + 1,
-                                     ylim=ylim,
-                                     xlim=xlim)
-
-                ax_lfp = plt.subplot(4, num_cols, (num_cols) * 3 + jit_idx + 1,
-                                     ylim=ylim,
-                                     xlabel='Time [ms]', xlim=xlim)
-
-                max_sig = np.max(np.abs(summed_EAP_dict[0][use_elec_idx])) / 1000
-                xlim = [5, 15]
-                ylim = [-0.4, 0.2]if np.max(np.abs(summed_EAP_dict[0][use_elec_idx])) / 1000 < 1. else [-max_sig / 2, max_sig / 4]
-
-                if jit_idx == 0:
-                    ax_raw.set_ylabel("RAW\nmV")
-                    ax_wband.set_ylabel("Wideband\nmV")
-                    ax_spikes.set_ylabel("Spikes\nmV")
-                    ax_lfp.set_ylabel("LFP\nmV")
-                ax_raw.set_title("Jitter STD: {} ms".format(jitter_STD), fontsize=12)
-
-                ax_raw.axhline(-threshold_raw / 1000, ls=":", color="pink")
-                ax_wband.axhline(-threshold_wband / 1000, ls=":", color="pink")
-                ax_spikes.axhline(-threshold_spikes / 1000, ls=":", color="pink")
-                ax_lfp.axhline(-threshold_lfp / 1000, ls=":", color="pink")
-
-                l1, = ax_raw.plot(t, y_raw / 1000, lw=1, c='gray', clip_on=True)
-                l2, = ax_wband.plot(t, y_wband / 1000, lw=1, c='k', clip_on=True)
-                l3, = ax_spikes.plot(t, y_spikes / 1000, lw=1, c='g', clip_on=True)
-                # l3b, = ax_spikes.plot(t, y_MUA / 1000, lw=1, c='cyan', clip_on=True)
-                l4, = ax_lfp.plot(t, y_lfp / 1000, lw=1, c='b', clip_on=True)
-
-                ax_raw.plot(t[minima_idx_raw], y_raw[minima_idx_raw] / 1000, 'o', ms=2, c='r', clip_on=True)
-                ax_wband.plot(t[minima_idx_wband], y_wband[minima_idx_wband] / 1000, 'o', ms=2, c='r', clip_on=True)
-                ax_spikes.plot(t[minima_idx_spikes], y_spikes[minima_idx_spikes] / 1000, 'o', ms=2, c='r', clip_on=True)
-                # ax_spikes.plot(t[minima_idx_MUA], y_MUA[minima_idx_MUA] / 1000, 'o', ms=2, c='orange', clip_on=True)
-                ax_lfp.plot(t[minima_idx_lfp], y_lfp[minima_idx_lfp] / 1000, 'o', ms=2, c='r', clip_on=True)
-
-                ax_raw.axvline(mean_latency, ls="--", color="gray")
-                ax_wband.axvline(mean_latency, ls="--", color="gray")
-                ax_spikes.axvline(mean_latency, ls="--", color="gray")
-                ax_lfp.axvline(mean_latency, ls="--", color="gray")
         if plot_trials:
-            fig.legend([l1, l2, l3, l4], ["Raw", "Wideband (20-3000 Hz)",
-                                          "Spikes (600 - 3000 Hz)",
-                                          # "MUA low-pass(|600 - 5000 Hz|)",
-                                          "LFP (20-600 Hz)"],
+            plt.close("all")
+            fig = plt.figure(figsize=[18, 9])
+            fig.subplots_adjust(wspace=0.5, right=0.98, left=0.1, hspace=0.5)
+            max_sig = np.max(np.abs(summed_EAP_dict[0][use_elec_idx])) / 1000
+            xlim = [5, 15]
+            ylim = [-0.4, 0.2] if np.max(np.abs(summed_EAP_dict[0][use_elec_idx])) / 1000 < 1. else [-max_sig / 2, max_sig / 4]
+
+        for jit_idx, jitter_STD in enumerate(jitter_STDs):
+
+            sig = summed_EAP_dict[jitter_STD][use_elec_idx]
+
+            filtered_signals = {}
+            thresholds = {}
+            lines = {}
+            for sig_idx, signal_key in enumerate(signal_list):
+
+                if signal_filter_params[signal_key] is None:
+                    sig_ = sig
+                else:
+                    f0, f1 = signal_filter_params[signal_key]
+                    sig_ = tools.filter_data(dt, sig, low_freq=f0, high_freq=f1)
+
+                filtered_signals[signal_key] = sig_ - sig_[0]
+                threshold = np.std(sig_) * 6
+                # threshold = -np.min(sig_) / 3
+
+                thresholds[signal_key] = threshold
+
+                minima_idx = (np.diff(np.sign(np.diff(sig_))) > 0).nonzero()[0] + 1
+                minima_idx = minima_idx[np.where(sig_[minima_idx] < -threshold)]
+
+                if len(minima_idx) > 0:
+                    latencies[signal_key][jit_idx, trial_num] = t[minima_idx[0]]
+                else:
+                    print("No peaks for {} jitter {} trial {}".format(signal_key, jitter_STD, trial_num))
+                    latencies[signal_key][jit_idx, trial_num] = 0.
+
+                if plot_trials:
+                    ax_sig = fig.add_subplot(len(signal_list), num_cols,
+                                             num_cols*sig_idx+jit_idx + 1,
+                                             ylim=ylim, xlim=xlim)
+                    if sig_idx + 1 == len(signal_list):
+                        ax_sig.set_xlabel("Time [ms]")
+
+                    if jit_idx == 0:
+                        ax_sig.set_ylabel("mV")
+
+                    if sig_idx == 0 :
+                        ax_sig.set_title("Jitter STD: {} ms".format(jitter_STD), fontsize=12)
+                    ax_sig.axhline(-threshold / 1000, ls=":", color=clr_dict[signal_key])
+
+                    l, = ax_sig.plot(t, sig_ / 1000, lw=1, c=clr_dict[signal_key], clip_on=True)
+                    lines[signal_key] = l
+                    ax_sig.plot(t[minima_idx], sig_[minima_idx] / 1000, 'o', ms=2, c='r', clip_on=True)
+
+                    if len(minima_idx) > 0 and signal_key is not "raw":
+                        ax_sig.set_title("1st: {:1.02f} ms".format(t[minima_idx[0]]), fontsize=10)
+
+                    ax_sig.axvline(mean_latency, ls="--", color="gray")
+
+        if plot_trials:
+            all_lines = [lines[signal_key] for signal_key in signal_list]
+            all_line_names = [title_dict[signal_key] for signal_key in signal_list]
+            fig.legend(all_lines, all_line_names,
                        loc="lower center", frameon=False, ncol=5)
-            plt.savefig(join(root_folder, "jitter_swr_%s_%d_trial_%d.png" % (fig_name, num_cells, trial_num)))
+            plt.savefig(join(root_folder, "jitter_%s_%d_trial_%d_dead_center.png" % (cell_name, num_cells, trial_num)))
 
     # Plot combined results
     plt.close("all")
     fig = plt.figure(figsize=[5, 7])
     fig.subplots_adjust(bottom=0.12, wspace=0.5, top=0.92, left=0.2, right=0.95)
-    title_dict = {"raw": "Raw data\nNo filter",
-                  "wband": "Wide band\n20-3000 Hz",
-                  "spikes": "Spike\n600-3000 Hz",
-                  #"mua": "MUA\n20-600 Hz of |600-3000 Hz|",
-                  "lfp": "LFP\n20-600 Hz",
-                  }
+
     ax_mean = fig.add_subplot(2, 1, 1,
                              xlabel="Spike jitter STD (ms)",
-                             ylim=[-5, +5])
+                             ylim=[-5, +5], xlim=[0, np.max(jitter_STDs)])
 
     ax_std = fig.add_subplot(2, 1, 2,
                              xlabel="Spike jitter STD (ms)",
-                             ylim=[0, +1.5])
+                             ylim=[0, 2.0], xlim=[0, np.max(jitter_STDs)])
     ax_mean.set_ylabel("Mean deviation from\ntrue center")
     ax_std.set_ylabel("STD of first peak")
     ax_mean.axhline(0, ls='--', c='gray')
-
+    ax_std.plot([0, 2], [0, 2], c="gray", ls='--')
     lines = []
     line_names = []
-    for sig_idx, signal_key in enumerate(["spikes", "lfp"]):
 
+    mean_dict = {"jitter_STDs": list(jitter_STDs),
+                 "num_trial": num_trials,
+                 "num_cells": num_cells}
+    std_dict = {"jitter_STDs": list(jitter_STDs),
+                "num_trial": num_trials,
+                "num_cells": num_cells}
+
+    for sig_idx, signal_key in enumerate(["spikes", "lfp", "lfp_hf"]):
 
         mean_deviations = []
         std_deviations = []
         for jit_idx, jitter_STD in enumerate(jitter_STDs):
-            ax_mean.scatter([jitter_STD] * num_trials, (latencies[signal_key][jit_idx] - mean_latency), c=clr_dict[signal_key], alpha=0.4, s=4)
-            deviation_mean = np.average(latencies[signal_key][jit_idx] - mean_latency)
-            deviation_std = np.std(latencies[signal_key][jit_idx] - mean_latency)
+            deviations = latencies[signal_key][jit_idx] - mean_latency
+            ax_mean.scatter([jitter_STD] * num_trials, deviations,
+                            c=clr_dict[signal_key], alpha=0.4, s=4)
+            deviation_mean = np.average(deviations)
+            deviation_std = np.std(deviations)
 
             mean_deviations.append(deviation_mean)
             std_deviations.append(deviation_std)
-
-        l = ax_mean.errorbar(jitter_STDs, mean_deviations, yerr=std_deviations, c=clr_dict[signal_key], ms=4, lw=2)
+        mean_dict[signal_key] = mean_deviations
+        std_dict[signal_key] = std_deviations
+        l, = ax_mean.plot(jitter_STDs, mean_deviations, c=clr_dict[signal_key], ms=4, lw=2)
         ax_std.plot(jitter_STDs, std_deviations, c=clr_dict[signal_key], marker='x', ms=4, lw=2)
         lines.append(l)
         line_names.append(title_dict[signal_key])
 
+    import json
+    json.dump(mean_dict, file(join(root_folder, 'mean_latencies_{}_{}_dead_center.txt'.format(cell_name, num_cells)), 'w'))
+    json.dump(std_dict, file(join(root_folder, 'std_latencies_{}_{}_dead_center.txt'.format(cell_name, num_cells)), 'w'))
+
     simplify_axes(fig.axes)
-    fig.legend(lines, line_names, frameon=False, ncol=3)
-    fig.savefig(join(root_folder, "combined_data_{}_{}.png".format(fig_name, num_cells)))
-    fig.savefig(join(root_folder, "combined_data_{}_{}.pdf".format(fig_name, num_cells)))
+    fig.legend(lines, line_names, frameon=False, ncol=3, fontsize=11)
+    fig.savefig(join(root_folder, "combined_data_{}_{}_dead_center.png".format(cell_name, num_cells)))
+    fig.savefig(join(root_folder, "combined_data_{}_{}_dead_center.pdf".format(cell_name, num_cells)))
 
 
 def plot_population(cell_name, num_cells):
@@ -242,10 +212,9 @@ def plot_population(cell_name, num_cells):
     electrode_parameters = return_electrode_parameters()
     electrode = LFPy.RecExtElectrode(**electrode_parameters)
 
-    num_cells_to_plot = 100
+    num_cells_to_plot = 5
+    use_elec_idx = 10 if cell_name is "hbp_L4_SBC_bNAC219_1" else 7
 
-    use_elec_idx = 10 if cell_name is "hbp_L4_SBC_bNAC219_1" else 6
-    # use_elec_idx = 9 if celltype is "hbp_L4_SBC_bNAC219_1" else 6
     print use_elec_idx
 
     plt.close("all")
@@ -286,12 +255,12 @@ def plot_population(cell_name, num_cells):
 def PopulationSerial(cell_name, num_cells):
 
     for cell_idx in range(0, num_cells):
-        print("Simulating cell %d of %d".format(cell_idx, num_cells))
+        print("Simulating cell {} {} of {}".format(cell_name, cell_idx, num_cells))
         os.system("python cell_simulation.py %s %d" % (cell_name, cell_idx))
 
 if __name__ == '__main__':
-    num_cells = 100
+    num_cells = 500
     cell_name = ["hbp_L23_PC_cADpyr229_1", "hbp_L4_SS_cADpyr230_1", "hbp_L4_SBC_bNAC219_1"][1]
-    PopulationSerial(cell_name, num_cells)
+    # PopulationSerial(cell_name, num_cells)
     prope_EAP_synchronizations(cell_name, num_cells)
-    plot_population(cell_name, num_cells)
+    # plot_population(cell_name, num_cells)

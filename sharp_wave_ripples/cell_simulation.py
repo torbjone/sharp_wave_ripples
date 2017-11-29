@@ -11,7 +11,6 @@ import neuron
 import LFPy
 from neuron import h
 
-
 root_folder = '..'
 layer_thickness = 100
 random_seed = 123
@@ -25,9 +24,27 @@ cell_type_weight_scale = {"hbp_L4_SS_cADpyr230_1": 0.1,
                           "hbp_L4_SBC_bNAC219_1": 0.007,}
 
 
+def get_templatename(f):
+    '''
+    Assess from hoc file the templatename being specified within. Needed
+    for HBP cell models
+    '''
+    f = file("template.hoc", 'r')
+    for line in f.readlines():
+        if 'begintemplate' in line.split():
+            templatename = line.split()[-1]
+            # print 'template {} found!'.format(templatename)
+            continue
+    return templatename
+
+
 def hbp_return_cell(cell_folder, end_T, dt, start_T, v_init=-65.):
 
-    cell_name = os.path.split(cell_folder)[1]
+    hbp_models_folder = os.path.split(__file__)[0]
+    neuron.h.load_file("stdrun.hoc")
+    neuron.h.load_file("import3d.hoc")
+    neuron.load_mechanisms(join(hbp_models_folder, 'mods'))
+
     cwd = os.getcwd()
     os.chdir(cell_folder)
     # print "Simulating ", cell_name
@@ -69,22 +86,20 @@ def hbp_return_cell(cell_folder, end_T, dt, start_T, v_init=-65.):
 
     # Instantiate the cell(s) using LFPy
     cell = LFPy.TemplateCell(morphology=join('morphology', morphologyfile),
-                     templatefile=os.path.join('template.hoc'),
-                     templatename=templatename,
-                     passive=False,
-                     templateargs=0,
-                     tstop=end_T,
-                     tstart=start_T,
-                     dt=dt,
-                     # dt=dt,
-                     extracellular=False,
-                     celsius=37,
-                     v_init=v_init,
-                     pt3d=True,
-                     )
+                             templatefile=os.path.join('template.hoc'),
+                             templatename=templatename,
+                             passive=False,
+                             templateargs=0,
+                             tstop=end_T,
+                             tstart=start_T,
+                             dt=dt,
+                             extracellular=False,
+                             celsius=37,
+                             v_init=v_init,
+                             pt3d=True,
+                             )
     os.chdir(cwd)
     cell.set_rotation(z=np.pi/2, x=np.pi/2)
-    # print cell.tstopms, cell.dt
     return cell
 
 
@@ -140,33 +155,27 @@ def make_synapse(cell, weight, input_idx, input_spike_train, e=0.):
     synapse.set_spike_times(input_spike_train)
     return cell, synapse
 
-def return_cell(cell_name, cell_number=None):
-    ### MAKING THE CELL
 
-    model_folder = join("/home", "tone", "work", "hbp_cell_models")
-    # from hbp_cell_models import return_cell as hbp_return_cell
-
+def return_cell(cell_name, cell_number):
 
     v_rest = -75.
-    cell_name = cell_name.replace("hbp_", "")
-    cell_folder = join(model_folder, "models", cell_name)
+    hbp_cell_name = cell_name.replace("hbp_", "")
+    hbp_cell_folder = join("models", hbp_cell_name)
     end_T = 150
     dt = 2**-5
     start_T = -200
-    cell = hbp_return_cell(cell_folder, end_T, dt, start_T, v_init=v_rest)
+    cell = hbp_return_cell(hbp_cell_folder, end_T, dt, start_T, v_init=v_rest)
     cell.set_rotation(x=0)
 
-    if cell_number is not None:
-        cell_x_y_z_rotation = np.load(join(root_folder, 'x_y_z_rot_%d_%s.npy' % (10000, cell_name)))
-        cell.set_rotation(z=cell_x_y_z_rotation[cell_number][3])
+    cell_x_y_z_rotation = np.load(join(root_folder, 'x_y_z_rot_%d_%s.npy' % (10000, cell_name)))
+    cell.set_rotation(z=cell_x_y_z_rotation[cell_number][3])
 
-        z_shift = np.max(cell.zend) + layer_thickness / 2
-        cell.set_pos(x=cell_x_y_z_rotation[cell_number][0],
-                     y=cell_x_y_z_rotation[cell_number][1],
-                     z=cell_x_y_z_rotation[cell_number][2] - z_shift)
-        if np.max(cell.zend) > 0:
-            raise RuntimeError("Cell reaches above cortex")
-
+    z_shift = np.max(cell.zend) + layer_thickness / 2
+    cell.set_pos(x=cell_x_y_z_rotation[cell_number][0],
+                 y=cell_x_y_z_rotation[cell_number][1],
+                 z=cell_x_y_z_rotation[cell_number][2] - z_shift)
+    if np.max(cell.zend) > 0:
+        raise RuntimeError("Cell reaches above cortex")
     return cell
 
 
@@ -186,7 +195,6 @@ def make_input(cell, cell_name):
         cell, synapse = make_synapse(cell,
                                      weight * np.random.normal(1., 0.2),
                                      input_idx, input_spike_train)
-
     return cell, synapse
 
 
@@ -219,8 +227,9 @@ def single_cell_compare(cell_number, cell_name, plot=False):
 
     LFP = 1000 * electrode.LFP
 
-    if not os.path.isdir(join(root_folder, cell_name, "EAPs")):
+    if not os.path.isdir(join(root_folder, cell_name)):
         os.mkdir(join(root_folder, cell_name))
+    if not os.path.isdir(join(root_folder, cell_name, "EAPs")):
         os.mkdir(join(root_folder, cell_name, "EAPs"))
 
     spike_time_idx = np.argmax(cell.somav)
@@ -308,11 +317,10 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:
         cell_name = ['hbp_L5_TTPC2_cADpyr232_1',
                      "hbp_L4_SS_cADpyr230_1",
-                     "hbp_L4_SBC_bNAC219_1"][-2]
+                     "hbp_L4_SBC_bNAC219_1"][2]
         input_type = ["waves"][0]
         initialize_population(10000, cell_name)
         single_cell_compare(cell_name=cell_name, cell_number=0, plot=True)
     else:
-        single_cell_compare(
-                            cell_name=sys.argv[1],
+        single_cell_compare(cell_name=sys.argv[1],
                             cell_number=int(sys.argv[2]))
