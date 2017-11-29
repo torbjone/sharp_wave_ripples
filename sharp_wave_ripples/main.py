@@ -252,15 +252,15 @@ def plot_population(cell_name, num_cells):
     plt.savefig(join(root_folder, "cell_population_%s_%d.pdf" % (fig_name, num_cells)))
 
 
-def PopulationSerial(cell_name, num_cells):
+def simulate_population(cell_name, num_cells):
 
     for cell_idx in range(0, num_cells):
         print("Simulating cell {} {} of {}".format(cell_name, cell_idx, num_cells))
         os.system("python cell_simulation.py %s %d" % (cell_name, cell_idx))
 
 if __name__ == '__main__':
-    num_cells = 500
+    num_cells = 100
     cell_name = ["hbp_L23_PC_cADpyr229_1", "hbp_L4_SS_cADpyr230_1", "hbp_L4_SBC_bNAC219_1"][1]
-    # PopulationSerial(cell_name, num_cells)
+    simulate_population(cell_name, num_cells)
     prope_EAP_synchronizations(cell_name, num_cells)
-    # plot_population(cell_name, num_cells)
+    plot_population(cell_name, num_cells)

@@ -1,19 +1,20 @@
 
 1) If you want to use the Human Brain Project cell models downloaded
 from https://bbp.epfl.ch/nmc-portal/ you first need to open the folder
-"sharp_wave_ripples/sharp_wave_ripples/hbp_cell_models" in a terminal
-and write "python hbp_cells.py". This should compile the needed
-cellular mechanisms.
+"sharp_wave_ripples/mods" in a terminal
+and write "nrnivmodl". This should compile the needed cellular mechanisms.
+NEURON must be correctly installed on the system for this to work.
 
 2) To initialize a population, go to the folder
 "sharp_wave_ripples/sharp_wave_ripples", and write
-"python main.py". This should initialize the population and
+"python cell_simulation.py". This should initialize the population and
 run a cell simulation. A Figure should be made in a folder corresponding
-to the cell model name
+to the cell model name. This assumed NEURON working with python, and the
+software LFPy installed.
 
-3) The script assumed you have MPI installed.
-To run the population simulation: "mpirun -np 4 python mpi_run.py MPI"
-The results from every tenth cell plotted
+3) To run the population simulation and plot the results: "python main.py"
+The results from every tenth cell is plotted during simulation. After all
+cell models have been run, you can comment out the "simulate_population" line
+to only produce the figures.
 
-4) To plot population results write "python mpi_run.py"
 

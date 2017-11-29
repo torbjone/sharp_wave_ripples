@@ -317,8 +317,7 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:
         cell_name = ['hbp_L5_TTPC2_cADpyr232_1',
                      "hbp_L4_SS_cADpyr230_1",
-                     "hbp_L4_SBC_bNAC219_1"][2]
-        input_type = ["waves"][0]
+                     "hbp_L4_SBC_bNAC219_1"][1]
         initialize_population(10000, cell_name)
         single_cell_compare(cell_name=cell_name, cell_number=0, plot=True)
     else:
