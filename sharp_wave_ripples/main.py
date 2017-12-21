@@ -17,7 +17,7 @@ root_folder = ".."
 def prope_EAP_synchronizations(cell_name, num_cells):
 
     num_trials = 100
-    plot_trials = True
+    plot_trials = False
     jitter_STDs = np.array([0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2])
 
     use_elec_idx = 10 if cell_name is "hbp_L4_SBC_bNAC219_1" else 7
@@ -71,8 +71,8 @@ def prope_EAP_synchronizations(cell_name, num_cells):
                            for j in jitter_STDs}
 
         for cell_idx in range(0, num_cells):
-            if cell_idx < 50:
-                continue
+            # if cell_idx < 50:
+            #     continue
             sim_name = 'swr_%s_%04d' % (cell_name, cell_idx)
             EAP = np.load(join(root_folder, cell_name, "EAPs", "EAP_%s.npy" % sim_name))
 
@@ -148,7 +148,7 @@ def prope_EAP_synchronizations(cell_name, num_cells):
             all_line_names = [title_dict[signal_key] for signal_key in signal_list]
             fig.legend(all_lines, all_line_names,
                        loc="lower center", frameon=False, ncol=5)
-            plt.savefig(join(root_folder, "jitter_%s_%d_trial_%d_dead_center.png" % (cell_name, num_cells, trial_num)))
+            plt.savefig(join(root_folder, "jitter_%s_%d_trial_%d.png" % (cell_name, num_cells, trial_num)))
 
     # Plot combined results
     plt.close("all")
@@ -197,13 +197,13 @@ def prope_EAP_synchronizations(cell_name, num_cells):
         line_names.append(title_dict[signal_key])
 
     import json
-    json.dump(mean_dict, file(join(root_folder, 'mean_latencies_{}_{}_dead_center.txt'.format(cell_name, num_cells)), 'w'))
-    json.dump(std_dict, file(join(root_folder, 'std_latencies_{}_{}_dead_center.txt'.format(cell_name, num_cells)), 'w'))
+    json.dump(mean_dict, file(join(root_folder, 'mean_latencies_{}_{}.txt'.format(cell_name, num_cells)), 'w'))
+    json.dump(std_dict, file(join(root_folder, 'std_latencies_{}_{}.txt'.format(cell_name, num_cells)), 'w'))
 
     simplify_axes(fig.axes)
-    fig.legend(lines, line_names, frameon=False, ncol=3, fontsize=11)
-    fig.savefig(join(root_folder, "combined_data_{}_{}_dead_center.png".format(cell_name, num_cells)))
-    fig.savefig(join(root_folder, "combined_data_{}_{}_dead_center.pdf".format(cell_name, num_cells)))
+    fig.legend(lines, line_names, frameon=False, ncol=1, fontsize=11)
+    fig.savefig(join(root_folder, "combined_data_{}_{}.png".format(cell_name, num_cells)))
+    fig.savefig(join(root_folder, "combined_data_{}_{}.pdf".format(cell_name, num_cells)))
 
 
 def plot_population(cell_name, num_cells):
@@ -259,8 +259,8 @@ def simulate_population(cell_name, num_cells):
         os.system("python cell_simulation.py %s %d" % (cell_name, cell_idx))
 
 if __name__ == '__main__':
-    num_cells = 100
+    num_cells = 1000
     cell_name = ["hbp_L23_PC_cADpyr229_1", "hbp_L4_SS_cADpyr230_1", "hbp_L4_SBC_bNAC219_1"][1]
-    simulate_population(cell_name, num_cells)
+    # simulate_population(cell_name, num_cells)
     prope_EAP_synchronizations(cell_name, num_cells)
-    plot_population(cell_name, num_cells)
+    # plot_population(cell_name, num_cells)

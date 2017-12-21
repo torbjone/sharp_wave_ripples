@@ -47,7 +47,7 @@ def filter_data(dt, data, low_freq=20.0, high_freq=3000.):
                 'N' : 2,
                 'rp': 0.1,
                 'rs': 40,
-                'Wn' : np.array([low_freq, high_freq]) * dt / 1000. *2,
+                'Wn' : np.array([low_freq, high_freq]) * dt / 1000. * 2,
                 'btype' : 'bandpass',
             },
             'filter' : ss.filtfilt
